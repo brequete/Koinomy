@@ -115,7 +115,7 @@ Practical STRIDE-lite: assets first, then one entry per threat with its STRIDE c
 
 - **Category:** Elevation of Privilege.
 - **Scenario:** An ADMIN account (compromised or malicious) deactivates users, issues invitations to outsiders, or browses tenant data through backoffice endpoints.
-- **Mitigation:** Backoffice endpoints are role-guarded (USER → 403, `docs/SECURITY.md` §3.3); admin mutations are auditable through the structured request log (method, path, status, `userId` — ARCHITECTURE.md §3 stage 11, §10); user-domain data access still requires the normal session-derived `userId` path — the backoffice manages users and invitations, it does not expose tenant financial data. A dedicated audit table is not in the current schema; adding one requires `docs/DATABASE.md` first (§1 rule 1 of that document).
+- **Mitigation:** Backoffice endpoints are role-guarded (USER → 403, `docs/SECURITY.md` §3.3); admin mutations are auditable through the structured request log (method, path, status, `userId` — ARCHITECTURE.md §3 stage 12, §10); user-domain data access still requires the normal session-derived `userId` path — the backoffice manages users and invitations, it does not expose tenant financial data. A dedicated audit table is not in the current schema; adding one requires `docs/DATABASE.md` first (§1 rule 1 of that document).
 - **Verification:** Integration test: USER-role session rejected on every backoffice endpoint; review check: every admin mutation route appears in the request-log assertions; log entries carry the acting `userId` (`docs/TESTS.md` §7).
 
 ### TM-15 — Dependency supply chain

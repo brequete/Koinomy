@@ -27,6 +27,7 @@ Every variable below is parsed **once, at boot**, by the API's zod env schema in
 | `MAIL_USER` | No | `apikey` | String (provider-dependent) |
 | `MAIL_PASS` | No | (provider secret) | String (provider-dependent) |
 | `MAIL_FROM` | With `MAIL_HOST` | `noreply@koinomy.app` | Valid email address |
+| `UPLOAD_DIR` | No — default `./uploads` | `/var/lib/koinomy/uploads` | Filesystem path for entity-logo storage; MUST resolve outside the webroot (docs/SECURITY.md §4.7). An absolute path is recommended outside development |
 | `EXCHANGE_RATE_FAILURE_EMAIL_THRESHOLD` | No — default `3` | `3` | Positive integer; consecutive ingestion failures before the ADMIN alert email (PRD FR-4.6) |
 
 ### 2.2 Test-environment variables
@@ -147,6 +148,7 @@ v1 docs named specific vendors; Koinomy keeps the target open and states **requi
 | HTTPS termination | TLS terminated before the API (platform proxy or self-managed); Secure cookies require it |
 | Health probes | Liveness/readiness endpoints per ARCHITECTURE.md §10; readiness includes DB connectivity |
 | Static client headers | The SPA hosting applies security headers equivalent to the API's helmet baseline, including CSP (`docs/SECURITY.md` §4.3) |
+| Reverse-proxy awareness | When the API sits behind a TLS-terminating proxy (the normal case), it must be configured to trust that proxy so client IPs are real. Otherwise IP-keyed rate limiting (`docs/SECURITY.md` §6.3) collapses all clients into the proxy's IP |
 
 **Deploy pipeline order:**
 

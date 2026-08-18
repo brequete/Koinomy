@@ -31,91 +31,91 @@ colors:
 
 typography:
   hero-display:
-    fontFamily: "BinanceNova, -apple-system, BlinkMacSystemFont, sans-serif"
+    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
     fontSize: 64px
     fontWeight: 700
     lineHeight: 1.1
     letterSpacing: -1px
   display-lg:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 48px
     fontWeight: 700
     lineHeight: 1.1
     letterSpacing: -0.5px
   display-md:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 40px
     fontWeight: 600
     lineHeight: 1.15
     letterSpacing: -0.3px
   display-sm:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 32px
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: 0
   title-lg:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 24px
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: 0
   title-md:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 20px
     fontWeight: 600
     lineHeight: 1.35
     letterSpacing: 0
   title-sm:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 16px
     fontWeight: 600
     lineHeight: 1.4
     letterSpacing: 0
   number-display:
-    fontFamily: "BinancePlex, BinanceNova, sans-serif"
+    fontFamily: "'IBM Plex Sans', Inter, sans-serif"
     fontSize: 40px
     fontWeight: 700
     lineHeight: 1.1
     letterSpacing: -0.3px
   number-md:
-    fontFamily: "BinancePlex, BinanceNova, sans-serif"
+    fontFamily: "'IBM Plex Sans', Inter, sans-serif"
     fontSize: 16px
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: 0
   number-sm:
-    fontFamily: "BinancePlex, BinanceNova, sans-serif"
+    fontFamily: "'IBM Plex Sans', Inter, sans-serif"
     fontSize: 14px
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: 0
   body-md:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 14px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0
   body-sm:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 13px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0
   caption:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 12px
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: 0
   button:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 14px
     fontWeight: 600
     lineHeight: 1
     letterSpacing: 0
   nav-link:
-    fontFamily: "BinanceNova, sans-serif"
+    fontFamily: "Inter, sans-serif"
     fontSize: 14px
     fontWeight: 500
     lineHeight: 1.4
@@ -401,13 +401,20 @@ The system has two canvas modes that map to product context:
 ## Typography
 
 ### Font Family
-The system runs **BinanceNova** for display and body, and **BinancePlex** for numerical / financial data. Both are licensed Binance custom typefaces. The fallback stack walks `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`.
 
-The split is functional, not decorative:
-- BinanceNova → editorial type (headlines, paragraphs, button labels, nav)
-- BinancePlex → tabular numerical type (prices, volumes, percentages, stat counters, prize pools)
+**Koinomy's binding stack (implementation contract).** The original Binance system runs the proprietary **BinanceNova** (display + body) and **BinancePlex** (numerical / financial display) typefaces, which are Binance-licensed and not publicly available. Koinomy therefore adopts the open substitutes as its **primary** stack — this is the implementable contract, not a fallback:
 
-Mixing them is not optional — BinanceNova on a price ticker would lose the trading-platform character; BinancePlex on a paragraph would feel monospace-cold.
+- **Inter** → replaces BinanceNova (display + body). Fallback stack: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`.
+- **IBM Plex Sans** → replaces BinancePlex (numbers, prices, financial data). Numeric roles MUST render with tabular figures (Tailwind `tabular-nums` utility) to preserve the "tabular and reliable" trading character. JetBrains Mono is the documented alternative if true monospace fidelity is ever preferred over humanist proportions.
+
+Both are open-licensed (OFL) and self-hostable — correct for a private, self-hosted product with no third-party font CDN dependency.
+
+The functional split is unchanged and not optional:
+
+- Inter → editorial type (headlines, paragraphs, button labels, nav)
+- IBM Plex Sans (tabular) → tabular numerical type (prices, volumes, percentages, stat counters, balances)
+
+Mixing them is not optional — Inter on a price ticker would lose the trading-platform character; IBM Plex Sans on a paragraph would feel cold.
 
 ### Hierarchy
 
@@ -434,8 +441,9 @@ Display sizes use weight 700 — heavier than most marketing systems. This makes
 
 `{typography.number-display}` and the smaller number variants always use **BinancePlex**, even when surrounding body type uses BinanceNova. Prices, volumes, and stat counters render in BinancePlex regardless of context — it is the system's "trustworthy number" voice.
 
-### Note on Font Substitutes
-If BinanceNova and BinancePlex are unavailable, **Inter** is the closest open-source substitute for BinanceNova and **JetBrains Mono** or **IBM Plex Sans** is the closest substitute for BinancePlex (depending on whether tabular monospace fidelity matters more than humanist proportions). Adjust display headlines down by ~3% in line-height to match BinanceNova's tighter cap height.
+### Note on the Original Binance Fonts
+
+The analysis above references **BinanceNova** and **BinancePlex** because the design intent was extracted from Binance's product surfaces. Those typefaces are proprietary to Binance; Koinomy implements the system with **Inter** and **IBM Plex Sans** (see §Font Family), matching weight axis and metrics closely. When reading "BinanceNova" or "BinancePlex" anywhere in this document's prose, read "Inter" and "IBM Plex Sans (tabular)" respectively — the frontmatter tokens already encode this mapping.
 
 ## Layout
 

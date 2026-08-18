@@ -8,13 +8,14 @@ Koinomy is a self-hosted, decoupled client/server system: a REST API (NestJS 11)
 
 ```text
 Koinomy/
-├── api/        # NestJS 11 workspace — REST API, auth, encryption, crons
-├── client/     # React 19 + Vite workspace — SPA, admin backoffice hidden by role
-└── docs/       # Source-of-truth documentation (this folder)
+├── api/             # NestJS 11 workspace — REST API, auth, encryption, crons
+├── client/          # React 19 + Vite workspace — SPA, admin backoffice hidden by role
+├── packages/shared/ # Pure zod schemas + TypeScript types shared by both workspaces
+└── docs/            # Source-of-truth documentation (this folder)
 ```
 
-- **Monorepo:** npm workspaces with two members, `api` and `client` (ADR-0002).
-- **Sharing policy:** nothing is shared between workspaces yet — types and zod schemas are duplicated by convention ("types-by-convention") until a third use case justifies extracting a shared package. Premature sharing is a v1 lesson: it couples release cadence before the contract is stable.
+- **Monorepo:** npm workspaces with three members: `api`, `client`, and `packages/shared` (ADR-0002).
+- **Sharing policy:** `packages/shared` holds **pure zod schemas and TypeScript types only** — API DTOs, domain types, and validation primitives (e.g., the decimal-string schema). No runtime dependencies, no framework imports, no business logic: business rules, services, and UI never move into it. This implements the ADR-0002 contract ("the monorepo shares zod schemas and TypeScript types between workspaces") while honoring the v1 lesson about premature sharing by keeping the package strictly contractual.
 - **Validation language:** zod everywhere — API input schemas, environment configuration, and client forms (AGENTS.md §2).
 
 ## 2. Backend Layering
@@ -41,15 +42,16 @@ Ordered pipeline for every incoming request:
 |---|-------|----------|
 | 1 | Security headers (helmet) | Baseline hardening headers on every response |
 | 2 | CORS allowlist | Origins validated against the env-configured allowlist; never wildcard, never origin reflection with credentials (red line, AGENTS.md §2.1) |
-| 3 | Body parsing | JSON body parsing with size limits |
-| 4 | better-auth handler | Requests under `/api/auth/*` are handled by better-auth and return before application guards |
-| 5 | Global zod validation pipe | Body/params/query validated against the route's zod schema; failures become the uniform validation error envelope (§11) |
-| 6 | Session guard | Resolves the DB-backed cookie session to a `userId`; unauthenticated requests get 401. This is the ONLY identity source (no impersonation bypass in any environment) |
-| 7 | Controller | Route handler receives validated input + `userId` |
-| 8 | Service | Business rules, encryption, transaction boundaries |
-| 9 | Repository | Drizzle queries with `userId` filtering (+ RLS context, §6) |
-| 10 | Global exception filter | Any thrown error is mapped to the uniform error envelope (§11); nothing leaks stack traces to clients |
-| 11 | Request logging | Structured access log entry (method, path, status, duration, userId) written when the response finishes; failures are logged, never swallowed |
+| 3 | Rate limiting | Strategy table in `docs/SECURITY.md` §6.3: IP-keyed limits on auth endpoints run here; user-keyed limits on authenticated routes resolve identity at stage 7 and enforce at the guard. Excess → 429 `RATE_LIMITED` envelope |
+| 4 | Body parsing | JSON body parsing with size limits |
+| 5 | better-auth handler | Requests under `/api/auth/*` are handled by better-auth and return before application guards |
+| 6 | Global zod validation pipe | Body/params/query validated against the route's zod schema; failures become the uniform validation error envelope (§11) |
+| 7 | Session guard | Resolves the DB-backed cookie session to a `userId`; unauthenticated requests get 401. This is the ONLY identity source (no impersonation bypass in any environment) |
+| 8 | Controller | Route handler receives validated input + `userId` |
+| 9 | Service | Business rules, encryption, transaction boundaries |
+| 10 | Repository | Drizzle queries with `userId` filtering (+ RLS context, §6) |
+| 11 | Global exception filter | Any thrown error is mapped to the uniform error envelope (§11); nothing leaks stack traces to clients |
+| 12 | Request logging | Structured access log entry (method, path, status, duration, userId) written when the response finishes; failures are logged, never swallowed |
 
 ## 4. Authentication Architecture
 
@@ -104,8 +106,9 @@ Binding decision: ADR-0006. Two mandatory layers:
 |-----|----------|----------|
 | Exchange-rate ingestion | Daily 08:00 UTC | Fetches `open.er-api.com/v6/latest/USD`, upserts rates for catalog currencies (idempotent per UTC day). On failure: logs with a consecutive-failure counter; at the configured threshold (default 3, env-overridable) sends one email to the first ADMIN user; counter resets on success. Cross-tenant by design (shared catalog) |
 | Recurring-payment reminders | Daily 09:00 UTC | Finds active, non-cancelled rules due within 7 days not yet notified today; sends `recurring_payment_reminder` emails; marks `lastNotifiedAt` and increments `notificationCount`. Cross-tenant scan — the documented exception pattern (AGENTS.md §5.6) |
-| Installment / delinquency reminders | Daily | Upcoming installment reminders and past-due delinquency emails (PRD Module 10) |
-| Savings deposit reminders | Daily | Deposit reminders for savings goals (PRD Module 10) |
+| Installment reminders | Daily 09:30 UTC | Finds PENDING installments with `dueDate` within the next 7 days (cross-tenant scan — documented exception, AGENTS.md §5.6). Dedup: at most one `installment_reminder` per installment per UTC day, checked via `NotificationLog` (`type` + `referenceId = installment.id` + `sentAt` today; index in `docs/DATABASE.md` §3.19). **New in Koinomy — no v1 spec defines this cron** |
+| Delinquency reminders | Daily 09:30 UTC | Finds PENDING installments with `dueDate` in the past (same cross-tenant exception). Dedup: at most one `delinquency` email per installment per UTC day via the same `NotificationLog` mechanism. **New in Koinomy** |
+| Savings deposit reminders | Daily 09:30 UTC | Finds active savings goals whose computed `nextContributionDate` (derived from `startDate` + `contributionFrequency`, month-end aware — PRD FR-8.3) is today or past (same cross-tenant exception). Dedup: at most one `deposit_reminder` per goal per UTC day via the same `NotificationLog` mechanism (`referenceId = goal.id`). **New in Koinomy** |
 
 Rules: cron failures never crash the process; notification sends log failures into `NotificationLog` (FAILED rows) and continue; cross-tenant scans exist only under the documented exception.
 
@@ -133,7 +136,7 @@ Rules: cron failures never crash the process; notification sends log failures in
 ## 10. Observability Baseline
 
 - **Structured logging:** NestJS Logger with structured (JSON) output in production; context (module, userId where available, request id) on every line.
-- **Request logging middleware:** method, path, status, duration, userId — stage 11 of the request lifecycle (§3).
+- **Request logging middleware:** method, path, status, duration, userId — stage 12 of the request lifecycle (§3).
 - **Health endpoint:** liveness/readiness probe for self-hosted deployments (DB connectivity on readiness).
 - **Cron failure alerting:** exchange-rate ingestion failure counter with ADMIN email threshold (§7); notification sends audit-logged in `NotificationLog` with SENT/FAILED status.
 - **Bootstrap errors are fatal:** the bootstrap function catches startup failures, logs them, and exits non-zero. v1's `void bootstrap()` swallowed fatal errors and kept serving a broken app — that failure mode is closed (ADR-0001).

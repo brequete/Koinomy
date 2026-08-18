@@ -106,7 +106,7 @@ Shared ISO currency catalog (e.g. `USD`, `VES`). No `userId` — shared referenc
 
 **Relations**
 
-- Referenced by `ExchangeRate.currencyCode`, `Account.currencyCode`, `Transaction.currencyCode` — all ON DELETE RESTRICT, ON UPDATE CASCADE.
+- Referenced by `ExchangeRate.currencyCode`, `Account.currencyCode`, `Transaction.currencyCode`, `SavingsGoalContribution.currencyCode` — all ON DELETE RESTRICT, ON UPDATE CASCADE.
 
 ### 3.2 ExchangeRate
 
@@ -138,7 +138,6 @@ Identity root. Owned by better-auth — see §6 before touching this table.
 | `name` | text | YES | — | Display name |
 | `emailVerified` | boolean | NO | `false` | better-auth email verification flag |
 | `image` | text | YES | — | Avatar URL |
-| `passwordHash` | text | NO | — | Custom field; credential passwords also live in `AuthAccount.password` |
 | `isTwoFactorEnabled` | boolean | NO | `false` | Custom field — §6 warning applies |
 | `twoFactorSecret` | text | YES | — | Custom field — §6 warning applies |
 | `role` | `Role` | NO | `USER` | Custom field; ADMIN unlocks the backoffice |
@@ -293,7 +292,7 @@ Financial accounts: checking, savings, credit cards, loans, cash.
 
 ### 3.10 RecurringPayment
 
-Recurring rules (fixed expenses, recurring income, debt payments) with due-date tracking and reminder state. Listed before `Transaction` because `Transaction.generatedFromRecurringPaymentId` references it.
+Recurring rules (fixed expenses, debt payments) with due-date tracking and reminder state. Outgoing types only — INCOME and TRANSFER rules are rejected (PRD FR-3.8). Listed before `Transaction` because `Transaction.generatedFromRecurringPaymentId` references it.
 
 | Column | Type | Nullable | Default | Notes |
 |--------|------|----------|---------|-------|
@@ -442,7 +441,7 @@ Deposit/withdrawal log for VIRTUAL-mode goals.
 | `savingsGoalId` | uuid | NO | — | FK → `SavingsGoal.id`, ON DELETE CASCADE (contributions die with the goal) |
 | `type` | `ContributionType` | NO | — | |
 | `encryptedAmount` | text | NO | — | Encrypted amount (§5) |
-| `currencyCode` | text | NO | — | Copied from the host account's currency at creation time; no FK constraint (see note below) |
+| `currencyCode` | text | NO | — | FK → `Currency.code`, ON DELETE RESTRICT, ON UPDATE CASCADE; copied from the host account's currency at creation time (see note below) |
 | `date` | timestamptz | NO | — | When the deposit/withdrawal occurred |
 | `encryptedNote` | text | YES | — | Encrypted memo (§5) |
 | `categoryId` | uuid | YES | — | FK → `Category.id`, ON DELETE RESTRICT; required for WITHDRAWAL, null for DEPOSIT (service-layer rule) |
@@ -451,9 +450,9 @@ Deposit/withdrawal log for VIRTUAL-mode goals.
 **Constraints and indexes**
 
 - Indexes: `(savingsGoalId, date DESC)`, `(userId)`.
-- FKs: `userId` → `User.id` CASCADE; `savingsGoalId` → `SavingsGoal.id` CASCADE; `categoryId` → `Category.id` RESTRICT.
+- FKs: `userId` → `User.id` CASCADE; `savingsGoalId` → `SavingsGoal.id` CASCADE; `categoryId` → `Category.id` RESTRICT; `currencyCode` → `Currency.code` RESTRICT / UPDATE CASCADE.
 - No `updatedAt` — rows are not modified after creation (preserved from v1).
-- Note: `currencyCode` has **no FK** to `Currency.code` in the v1 schema; Koinomy preserves that faithfully. Adding the FK is a candidate follow-up decision and, per §1 rule 1, must be proposed in this document before implementation.
+- Note: `currencyCode` had **no FK** to `Currency.code` in the v1 schema (drift). Koinomy adds the FK at design time — decided in the pre-implementation documentation audit — because no schema exists yet and referential integrity is free.
 
 ### 3.17 DebtConsumption
 
@@ -490,7 +489,7 @@ Individual installment of a `DebtConsumption`. **Child table without `userId`** 
 | `encryptedAmount` | text | NO | — | Encrypted installment amount (§5) |
 | `status` | `InstallmentStatus` | NO | `PENDING` | |
 | `paidAt` | timestamptz | YES | — | When it was paid |
-| `paidTransactionId` | uuid | YES | — | UNIQUE; identifies the paying transaction; no FK constraint (see note below) |
+| `paidTransactionId` | uuid | YES | — | UNIQUE; FK → `Transaction.id`, ON DELETE RESTRICT; identifies the paying transaction (see note below) |
 | `createdAt` | timestamptz | NO | `now()` | |
 | `updatedAt` | timestamptz | NO | — | Set by the application on update |
 
@@ -498,8 +497,8 @@ Individual installment of a `DebtConsumption`. **Child table without `userId`** 
 
 - UNIQUE: `paidTransactionId` (at most one installment paid by a given transaction).
 - Index: `(debtConsumptionId)`.
-- FK: `debtConsumptionId` → `DebtConsumption.id`, ON DELETE CASCADE.
-- Note: `paidTransactionId` has **no FK** to `Transaction.id` in the v1 schema (unique column only); Koinomy preserves that faithfully. Adding the FK is a candidate follow-up decision and, per §1 rule 1, must be proposed in this document before implementation.
+- FKs: `debtConsumptionId` → `DebtConsumption.id`, ON DELETE CASCADE; `paidTransactionId` → `Transaction.id`, ON DELETE RESTRICT.
+- Note: `paidTransactionId` had **no FK** to `Transaction.id` in the v1 schema (unique column only — drift). Koinomy adds the FK at design time — decided in the pre-implementation documentation audit. ON DELETE RESTRICT is safe because transactions are append-only (no DELETE route, PRD FR-3.5).
 
 ### 3.19 NotificationLog
 
@@ -520,7 +519,7 @@ Audit log of outbound email notifications: one row per send attempt, SENT or FAI
 
 **Constraints and indexes**
 
-- Indexes: `(userId, sentAt DESC)`, `(type)`, `(status)`.
+- Indexes: `(userId, sentAt DESC)`, `(type)`, `(status)`, `(type, referenceId, sentAt)` — the last one supports the reminder-cron dedup lookups (ARCHITECTURE.md §7).
 - FK: `userId` → `User.id`, ON DELETE CASCADE.
 - No `updatedAt` — rows are immutable once written (preserved from v1).
 
@@ -592,7 +591,7 @@ Binding decision: ADR-0004.
 
 - `User`, `Session`, `AuthAccount`, and `Verification` are **owned by the auth layer**. Application code reads them through the better-auth boundary and never writes them directly — writes happen only through better-auth APIs. They are RLS-exempt (ARCHITECTURE.md §6).
 - `Session.id`, `AuthAccount.id`, and `Verification.id` are plain `text`: better-auth generates its own ID format (not UUID). Do not convert them.
-- **Custom `User` fields** (beyond the better-auth baseline): `role`, `isActive`, `isTwoFactorEnabled`, `twoFactorSecret`, `passwordHash`.
+- **Custom `User` fields** (beyond the better-auth baseline): `role`, `isActive`, `isTwoFactorEnabled`, `twoFactorSecret`. Credential password hashes live exclusively in `AuthAccount.password`, owned by better-auth — v1's duplicated `User.passwordHash` is NOT carried over (no v1 spec backs it; two copies of the same hash are risk without benefit).
 - **Dead-column warning.** `isTwoFactorEnabled` and `twoFactorSecret` MUST NOT exist as dead columns: they ship together with the working 2FA implementation (PRD Module 11, better-auth `twoFactor` plugin). v1 shipped them dead — that failure mode is a documented reason for the Koinomy restart (ADR-0001/0004). If 2FA work has not landed, these two columns are defined here as the contract it ships against, not as existing schema.
 - **No `Invitation` table.** The v1 `DATABASE.md` documented an `Invitation` table that never existed in the v1 schema (known drift — not propagated). The invite-only flow will be modeled through better-auth's admin/invitation capabilities when PRD Module 11 is ported; any resulting table is added to this document first (§1 rule 1).
 

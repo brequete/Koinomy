@@ -36,7 +36,7 @@ Binding decisions: ADR-0004, PRD Module 11 (FR-11.2…FR-11.6).
 
 Binding decisions: ADR-0006, ARCHITECTURE.md §6, PRD FR-11.8.
 
-1. **Session-derived identity only.** `userId` is resolved from the authenticated session by the session guard (request lifecycle stage 6, ARCHITECTURE.md §3) and flows down as an explicit argument. Client-supplied identity parameters are ignored, never parsed (PRD Module 10 acceptance criteria demonstrate the pattern).
+1. **Session-derived identity only.** `userId` is resolved from the authenticated session by the session guard (request lifecycle stage 7, ARCHITECTURE.md §3) and flows down as an explicit argument. Client-supplied identity parameters are ignored, never parsed (PRD Module 10 acceptance criteria demonstrate the pattern).
 2. **Role model.** `Role` enum: `USER`, `ADMIN` (`docs/DATABASE.md` §4). ADMIN unlocks the administration backoffice; `isActive = false` blocks access.
 3. **Admin backoffice guard.** Backoffice endpoints (user management, invitation issuance/revocation, deactivation — PRD FR-11.7) reject non-ADMIN sessions. Role violations return **403 FORBIDDEN** — the one legitimate use of 403 (ARCHITECTURE.md §11).
 4. **Anti-enumeration.** Cross-tenant access to any user-domain resource returns **404 NOT_FOUND** with a single indistinguishable message — never 403, never a response that reveals the resource exists (ARCHITECTURE.md §11, PRD Module 1/2 acceptance criteria).
@@ -45,7 +45,7 @@ Binding decisions: ADR-0006, ARCHITECTURE.md §6, PRD FR-11.8.
 
 ## 4. Input and Output Hardening
 
-1. **Boundary validation.** Every route validates body/params/query with a zod schema at the controller boundary (request lifecycle stage 5). Invalid input never reaches a service.
+1. **Boundary validation.** Every route validates body/params/query with a zod schema at the controller boundary (request lifecycle stage 6). Invalid input never reaches a service.
 2. **Service-layer guards.** Services re-validate security-relevant inputs (defense in depth against direct calls from crons, jobs, and tests). This is an accepted, documented pattern — reviewers must not flag it (`AGENTS.md` §5.1).
 3. **Security headers.** helmet on the API with a CSP baseline: `default-src 'self'; object-src 'none'; frame-ancestors 'none'`, plus the standard helmet set (HSTS, X-Content-Type-Options, etc.). The static client hosting applies an equivalent or stricter CSP at the web server (`docs/OPERATIONS.md` §6). v1 shipped no headers at all.
 4. **CORS.** Allowlist from the validated env (`CORS_ORIGINS`); never wildcard, never origin reflection with credentials (`AGENTS.md` §2.1 rule 2).
@@ -71,7 +71,7 @@ Binding decision: ADR-0005.
 ## 6. Runtime and Infrastructure
 
 1. **Fail-fast boot.** The bootstrap catches startup failures, logs them, and exits non-zero (ARCHITECTURE.md §10). A broken app never serves traffic (v1's `void bootstrap()` swallowed fatal errors).
-2. **Structured logging without sensitive data.** JSON structured logs with context (module, request id, `userId`). **Never logged:** plaintext financial fields, decrypted names/notes, encryption keys, session tokens, passwords, full email bodies. Request logs carry method, path, status, duration, `userId` — not payloads (ARCHITECTURE.md §3 stage 11, §10).
+2. **Structured logging without sensitive data.** JSON structured logs with context (module, request id, `userId`). **Never logged:** plaintext financial fields, decrypted names/notes, encryption keys, session tokens, passwords, full email bodies. Request logs carry method, path, status, duration, `userId` — not payloads (ARCHITECTURE.md §3 stage 12, §10).
 3. **Rate limiting strategy table** (initial baseline — tuning changes update this document under the sync rule; state is in-memory, appropriate to the single-instance self-hosted deployment):
 
    | Endpoint class | Limit | Window | Keyed by | On exceed |

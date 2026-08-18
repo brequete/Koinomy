@@ -124,7 +124,7 @@ Cross-cutting v1 specs with no module home: `auth-guard` (the v1 dev-mode `X-Use
 - FR-3.4 List with filters (`accountId`, `categoryId`, `type`, `from`, `to`) and pagination (default 20, max 100), ordered `date DESC`; fetch by id.
 - FR-3.5 Limited mutability: only `note`, `categoryId`, and `date` are editable; amount, account, type, and currency are immutable. The journal is append-only — no DELETE.
 - FR-3.6 Programmatic DEBT_PAYMENT creation participates in an outer transaction when one is supplied (used by Module 5 installment payment).
-- FR-3.7 Aggregation support: sum transaction amounts by category and period with exact decimal arithmetic (feeds Module 6).
+- FR-3.7 Aggregation support: sum transaction amounts by category and period with exact decimal arithmetic (feeds Module 6), and income/expense totals grouped by currency and period (feeds the Module 9 income-vs-expenses widget — the only dashboard aggregate with a dedicated endpoint).
 
 **Acceptance criteria** (mined from `transactions`).
 
@@ -304,7 +304,7 @@ Cross-cutting v1 specs with no module home: `auth-guard` (the v1 dev-mode `X-Use
 
 - FR-10.1 Email delivery through a configured SMTP transport; missing configuration puts the system in dry-run mode (log only) — it never crashes on missing SMTP config.
 - FR-10.2 Every send creates a `NotificationLog` row; SMTP failure creates a FAILED row with the error and never throws to the caller; batch sends continue past individual failures.
-- FR-10.3 Preventive reminders: upcoming recurring payments (Module 3), upcoming installments, deposit reminders. Delinquency emails for past-due unpaid installments. Closing report on snapshot creation (Module 7). Exchange-rate sync failure alert to ADMIN (Module 4).
+- FR-10.3 Preventive reminders: upcoming recurring payments (Module 3), upcoming installments, deposit reminders. Delinquency emails for past-due unpaid installments. Closing report on snapshot creation (Module 7). Exchange-rate sync failure alert to ADMIN (Module 4). The installment, delinquency, and deposit reminder crons are **new in Koinomy** (v1 defined only the recurring-payment reminder, REQ-RP-10); they dedup per entity per UTC day via `NotificationLog` (`type` + `referenceId` + `sentAt`) and run as documented cross-tenant exceptions (`AGENTS.md` §5.6). Mechanics: `docs/ARCHITECTURE.md` §7.
 - FR-10.4 Read-only notification history for the user: paginated list with type/status/date filters; recipient addresses are masked; body and error details are never exposed; any client-supplied `userId` parameter is ignored.
 
 **Acceptance criteria** (mined from `notifications`).
@@ -410,5 +410,7 @@ Behavior is re-ported module by module from the v1 OpenSpec specs under the SDD 
 | 7 | Savings goals (Module 8) | Builds on accounts (host account rules, real available balance) |
 | 8 | Debt & installments (Module 5) | Reuses the transaction service's DEBT_PAYMENT path and accounts' available credit |
 | 9 | Snapshots (Module 7) | Captures account balances; comparative logic needs history to accumulate |
-| 10 | Notifications (Module 10) | Cross-cutting delivery used by recurring, debt, snapshots, and rate alerting; wired last so producers already exist |
+| 10 | Notifications (Module 10) | User-facing notification history (read-only endpoint, REQ-NOTIF-6…9) and the reminder crons (ARCHITECTURE.md §7); the delivery service itself already exists (see note below) |
 | 11 | Administration backoffice & remaining Module 11 features (2FA enforcement, HIBP, timeout tuning) | Admin operations manage the tenant base; 2FA/admin plugins land on top of the working auth foundation |
+
+> **Notification foundation exception.** The minimal email delivery service — SMTP transport, dry-run mode, `NotificationLog` writer (v1 `notifications` spec REQ-NOTIF-1…3) — lands with the **scaffold**, before any feature module. The Module 4 ingestion cron (order 2), recurring-payment reminders (order 6), and snapshot closing reports (order 9) all send email before Module 10's turn, so the delivery capability must exist first. Order 10 then delivers only the user-facing history endpoint and the reminder crons, which consume the already-working delivery service.

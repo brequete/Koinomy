@@ -10,7 +10,7 @@ Koinomy is a **clean-slate restart** (ADR-0001). The v1 codebase (`C:\Users\cabr
 
 As the Orchestrator, you **MUST guarantee** that no task delegated to your sub-agents violates the following rules:
 
-* **Tech Stack (locked by ADR):** React 19 + Vite (Frontend) and NestJS 11 + Drizzle ORM + PostgreSQL 16+ (Backend). **zod** is the single validation language (API input schemas, env config, frontend forms). Strict TypeScript everywhere. Monorepo via npm workspaces with `api/` and `client/` (ADR-0002, ADR-0003).
+* **Tech Stack (locked by ADR):** React 19 + Vite (Frontend) and NestJS 11 + Drizzle ORM + PostgreSQL 16+ (Backend). **zod** is the single validation language (API input schemas, env config, frontend forms). Strict TypeScript everywhere. Monorepo via npm workspaces with `api/`, `client/`, and `packages/shared/` (pure zod schemas and types only) (ADR-0002, ADR-0003).
 * **Coding Standards & Best Practices:**
     1. **Clean Code:** Prioritize readability, meaningful naming, and small, focused functions.
     2. **Clean Architecture:** Ensure separation of concerns (Controllers/Services/Repositories).
@@ -21,7 +21,7 @@ As the Orchestrator, you **MUST guarantee** that no task delegated to your sub-a
     7. **Type Safety:** Maintain strict TypeScript typing. Avoid `any`.
 * **Security (Encryption Adapter Pattern):** Application-level encryption (AES-256-GCM). In the Drizzle schema, encrypted fields are plain strings (e.g., `encryptedAmount`). The backend encrypts/decrypts on the fly through the `EncryptionService` adapter (`LocalEncryptionService` now, vault provider later). An unimplemented or unconfigured adapter must fail boot — never ship a silent stub (ADR-0005).
 * **Multi-Tenant Isolation:** **Zero tolerance for data leaks.** Every backend query that reads or writes tenant-owned/user-domain data must be filtered by the requester's `userId` from the authenticated session, and PostgreSQL Row-Level Security backs this up as defense-in-depth (ADR-0006). **Explicit exception:** global system catalogs (e.g., `Currency`, `ExchangeRate`) are shared reference data and intentionally have no `userId`; system-level cross-tenant crons follow the documented exception pattern (§5.6).
-* **Architecture:** Simple repository structure (`/client` and `/api`).
+* **Architecture:** Simple repository structure (`/client`, `/api`, and `/packages/shared` — the last one holds pure zod schemas and TypeScript types only, per ARCHITECTURE.md §1).
 * **UI/UX Design:** Any frontend development (`/client`) must strictly adhere to the visual guidelines, base components (shadcn/ui + Radix primitives over Tailwind 4), and established color palette defined in `docs/DESIGN.md`.
 
 ### 2.1 Koinomy Red Lines (lessons from the v1 audit)
