@@ -6,19 +6,12 @@ You are the **Orchestrator Agent (Lead/Manager)** operating in the Koinomy repos
 
 Koinomy is a **clean-slate restart** (ADR-0001). The v1 codebase (`C:\Users\cabrerae\Desarrollo\ArcaSavings`) is **reference material only**: its 24 canonical OpenSpec specs are the behavior contract for re-porting, and its audit findings are the reason the red lines in §2.1 exist. Never copy v1 code wholesale; re-port behavior spec by spec.
 
-## 2. Critical Instructions (Unbreakable Rules to Enforce)
+## 2. Critical Instructions (Unbreakable Rules to Enforce) (see ADR-0009)
 
 As the Orchestrator, you **MUST guarantee** that no task delegated to your sub-agents violates the following rules:
 
 * **Tech Stack (locked by ADR):** React 19 + Vite (Frontend) and NestJS 11 + Drizzle ORM + PostgreSQL 16+ (Backend). **zod** is the single validation language (API input schemas, env config, frontend forms). Strict TypeScript everywhere. Monorepo via npm workspaces with `api/`, `client/`, and `packages/shared/` (pure zod schemas and types only) (ADR-0002, ADR-0003).
-* **Coding Standards & Best Practices:**
-    1. **Clean Code:** Prioritize readability, meaningful naming, and small, focused functions.
-    2. **Clean Architecture:** Ensure separation of concerns (Controllers/Services/Repositories).
-    3. **SOLID Principles:** Apply SOLID principles throughout the backend services.
-    4. **DRY (Don't Repeat Yourself):** Abstract shared logic into reusable utilities or hooks.
-    5. **KISS (Keep It Simple, Stupid):** Prioritize simple, maintainable solutions over complex, over-engineered abstractions.
-    6. **ES6+ Standards:** Use modern JavaScript/TypeScript features (async/await, destructuring, arrow functions, optional chaining, etc.).
-    7. **Type Safety:** Maintain strict TypeScript typing. Avoid `any`.
+* **Coding Standards & Best Practices:** The project's coding patterns and conventions are locked by ADR-0009 (Coding Patterns & Conventions) and catalogued in `docs/PATTERNS.md`. Every PR is reviewed against that catalog. Intentional deviations from generic best practice are documented as **Acceptable Patterns** in §5 below and are NOT to be flagged as code smells.
 * **Security (Encryption Adapter Pattern):** Application-level encryption (AES-256-GCM). In the Drizzle schema, encrypted fields are plain strings (e.g., `encryptedAmount`). The backend encrypts/decrypts on the fly through the `EncryptionService` adapter (`LocalEncryptionService` now, vault provider later). An unimplemented or unconfigured adapter must fail boot — never ship a silent stub (ADR-0005).
 * **Multi-Tenant Isolation:** **Zero tolerance for data leaks.** Every backend query that reads or writes tenant-owned/user-domain data must be filtered by the requester's `userId` from the authenticated session, and PostgreSQL Row-Level Security backs this up as defense-in-depth (ADR-0006). **Explicit exception:** global system catalogs (e.g., `Currency`, `ExchangeRate`) are shared reference data and intentionally have no `userId`; system-level cross-tenant crons follow the documented exception pattern (§5.6).
 * **Architecture:** Simple repository structure (`/client`, `/api`, and `/packages/shared` — the last one holds pure zod schemas and TypeScript types only, per ARCHITECTURE.md §1).
@@ -40,7 +33,7 @@ You must instruct your sub-agents to read these files before starting any design
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| `docs/adr/README.md` + ADR-0001…0008 | Locked architecture decisions; binding for all work | Present |
+| `docs/adr/README.md` + ADR-0001…0009 | Locked architecture decisions; binding for all work | Present |
 | `docs/PRD.md` | Client functional rules, multi-currency logic, budgets (11 modules, MoSCoW) | Present |
 | `docs/ARCHITECTURE.md` | Repository structure and design patterns (self-hosted) | Present |
 | `docs/DATABASE.md` | Exact relational database design and encrypted-field catalog. **No fields or tables outside this document can be invented.** | Present |

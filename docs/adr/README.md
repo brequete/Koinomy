@@ -103,3 +103,4 @@ Copy this block for every new ADR:
 | [0006](0006-multi-tenant-isolation.md) | Multi-Tenant Isolation | Accepted | userId filter in every user-domain query, plus PostgreSQL Row-Level Security as defense-in-depth |
 | [0007](0007-testing-strategy.md) | Testing Strategy | Accepted | TDD, Jest + Vitest, testcontainers, coverage thresholds enforced in CI |
 | [0008](0008-dependency-hygiene-and-quality-gates.md) | Dependency Hygiene and Quality Gates | Accepted | Renovate, ESLint + Prettier, Husky, GitHub Actions CI gating merge |
+| [0009](0009-coding-patterns-and-conventions.md) | Coding Patterns and Conventions | Accepted | Positive catalog in `docs/PATTERNS.md` replacing the AGENTS.md §2 flat checklist; PRs reviewed against the catalog |
